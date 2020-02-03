@@ -12,7 +12,7 @@ def url_for(name, **params):
 
 
 def static_url_for(file_path):
-    static_path = os.path.join(conf.static, file_path)
+    static_path = os.path.join(conf.static_dir, file_path)
     return urlparse.urljoin('/', static_path)
 
 

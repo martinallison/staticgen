@@ -1,0 +1,19 @@
+# os
+.DS_Store
+
+# our stuff
+*.egg-info/
+ma/build/
+
+# python stuff
+__pycache__/
+*.py[cod]
+
+# C extensions
+*.so
+
+# vscode editor stuff
+.vscode/
+
+# sass stuff
+.sass-cache/

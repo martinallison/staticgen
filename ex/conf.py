@@ -1,0 +1,5 @@
+build = './build'
+root = './root'
+static = './static'
+templates = './templates'
+url_module = 'ex.urls'

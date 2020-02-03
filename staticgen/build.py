@@ -43,11 +43,17 @@ def build():
         click.echo(f'- {url} ' + tick)
 
     click.echo('Copying static')
-    dirs.copy_tree(conf.base_path(conf.static), conf.build_path(conf.static))
+    dirs.copy_tree(
+        conf.base_path(conf.static_dir),
+        conf.build_path(conf.static_dir),
+    )
     click.echo(tick)
 
     click.echo('Copying root')
-    dirs.copy_tree(conf.base_path('root'), conf.build_path())
+    dirs.copy_tree(
+        conf.base_path(conf.root_dir),
+        conf.build_path(),
+    )
     click.echo(tick)
 
     click.echo('Done')

@@ -5,9 +5,9 @@ from .conf import conf
 
 
 @click.group()
-@click.argument('conf_module')
-def main(conf_module):
-    conf(conf_module)
+@click.argument('dir')
+def main(dir):
+    conf.load_from_dir(dir)
 
 
 @main.command()

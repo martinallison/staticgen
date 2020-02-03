@@ -17,7 +17,7 @@ def static_url_for(file_path):
 
 
 def get_jinja():
-    templates = conf.base_path(conf.templates)
+    templates = conf.base_path(conf.template_dir)
     loader = jinja2.FileSystemLoader([templates])
     jinja = jinja2.Environment(loader=loader)
     jinja.globals.update(

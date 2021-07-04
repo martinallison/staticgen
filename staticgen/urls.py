@@ -1,38 +1,52 @@
-import collections
-import functools
-import itertools
+from __future__ import annotations
 
-import parse
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Iterable, Mapping, Optional
 
-from .conf import conf
-
-
-BaseUrl = collections.namedtuple('Route', 'pattern, fn, name, generators')
+if TYPE_CHECKING:
+    from . import app, views
 
 
-class Url(BaseUrl):
-
-    def generate_kwargs(self, fields):
-        values = [self.generators[field]() for field in fields]
-        for value_combination in itertools.product(*values):
-            yield dict(zip(fields, value_combination))
-
-    def flatten(self):
-        pattern = self.pattern
-        fn = self.fn
-        parser = parse.Parser(pattern)
-        fields = parser._named_fields or []
-
-        if not fields:
-            yield pattern, fn
-        else:
-            for field in fields:
-                if field not in self.generators:
-                    raise ValueError(f'{field} missing from generators')
-
-            for kwargs in self.generate_kwargs(fields):
-                yield pattern.format(**kwargs), functools.partial(fn, **kwargs)
+ForEach = Mapping[str, Callable[["app.App"], Iterable]]
 
 
-def url(pattern, fn, *, name, generators=None):
-    return Url(pattern, fn, name, generators or {})
+@dataclass
+class Url:
+    name: str
+    pattern: str
+    view: views.View
+    foreach: ForEach
+
+
+def url(
+    pattern: str, view: views.View, *, name: str, foreach: Optional[ForEach] = None
+) -> Url:
+    """
+    Create a URL.
+
+    URLs define where content should be accessible from in the resulting built site.
+
+    A URL has a pattern that maps to a view. A view is callable that takes an `app.App`
+    and returns some string content.
+
+    The string content returned by a view is output to a file at the URL path relative
+    to the build directory.
+
+    Example:
+
+        # views.py
+        def hello(app):
+            return "<body><p>Hello</p></body>"
+
+        # urls.py
+        urls = [url("/hello", view, name="hello")]
+
+        # conf.py
+        urlconf = "project.urls"
+
+        staticgen serve --conf="path.to.conf"
+
+        GET localhost/hello
+        -> <body><p>Hello</p></body>
+    """
+    return Url(pattern=pattern, view=view, name=name, foreach=foreach or {})

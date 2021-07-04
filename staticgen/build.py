@@ -1,59 +1,53 @@
-import os
+from dataclasses import dataclass
+from distutils import dir_util as dirs
+from pathlib import Path
 
 import click
 
-from distutils import dir_util as dirs
+from . import app
 
-from . import site
-from .conf import conf
-
-
-tick = click.style('✓', fg='green', bold=True)
+tick = click.style("✓", fg="green", bold=True)
 
 
-def iter_urls():
-    for url in conf.urls:
-        yield from url.flatten()
+@dataclass(frozen=True)
+class Output:
+    path: Path
+    content: str
 
 
-def write_content(url, content):
-    url = url.strip('/')
-
-    if '.' in url.split('/')[-1]:
-        file_path = conf.build_path(url)
-        directory, _ = os.path.split(file_path)
-    else:
-        directory = conf.build_path(url)
-        file_path = os.path.join(directory, 'index.html')
-
-    dirs.mkpath(directory)
-    with open(file_path, 'w') as f:
-        f.write(content)
-
-
-def build():
+def build(app: app.App) -> None:
     try:
-        dirs.remove_tree(conf.build_path())
+        dirs.remove_tree(str(app.build_dir))
     except OSError:
         pass
 
-    click.echo('Building routes')
-    for url, view in iter_urls():
-        write_content(url, view())
-        click.echo(f'- {url} ' + tick)
-
-    click.echo('Copying static')
-    dirs.copy_tree(
-        conf.base_path(conf.static_dir),
-        conf.build_path(conf.static_dir),
-    )
+    click.echo("Rendering views")
+    _render_views(app)
     click.echo(tick)
 
-    click.echo('Copying root')
-    dirs.copy_tree(
-        conf.base_path(conf.root_dir),
-        conf.build_path(),
-    )
+    click.echo("Copying root")
+    dirs.copy_tree(str(app.root_dir), str(app.build_dir))
     click.echo(tick)
 
-    click.echo('Done')
+    click.echo("Done")
+
+
+def _render_views(app: app.App) -> None:
+    for url in app.generate_routes():
+        path = _output_path(app.build_dir, url.url)
+        response = url.view()
+
+        dirs.mkpath(str(path.parent))
+
+        with open(path, "w") as f:
+            f.write(response.content)
+
+
+def _output_path(build_dir: Path, path: str) -> Path:
+    path = Path(path.strip("/"))
+
+    output_path = build_dir / path
+    if not path.suffix:
+        output_path = output_path / "index.html"
+
+    return output_path

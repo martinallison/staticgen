@@ -1,24 +1,41 @@
+from typing import Optional
+
 import click
 
-from . import build as _build, server
-from .conf import conf
+from . import app
+from . import build as _build
+from . import server
+
+
+class App(click.ParamType):
+    name = "conf"
+
+    def convert(
+        self, value: Optional[str], param: Optional[str], ctx: click.Context
+    ) -> app.App:
+        return app.from_module(value)
+
+
+takes_app = click.option("-c", "--conf", "app", type=App())
 
 
 @click.group()
-@click.argument('dir')
-def main(dir):
-    conf.load_from_dir(dir)
+def main():
+    pass
 
 
 @main.command()
-def build():
-    _build.build()
+@takes_app
+def build(app: app.App):
+    _build.build(app)
 
 
 @main.command()
-def serve():
-    server.serve()
+@takes_app
+@click.option("-s", "--strict", is_flag=True)
+def serve(app: app.App, strict: bool):
+    server.serve(app, strict=strict)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

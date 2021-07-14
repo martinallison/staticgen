@@ -1,21 +1,14 @@
-from dataclasses import dataclass
 from distutils import dir_util as dirs
 from pathlib import Path
 
 import click
 
-from . import app
+from . import site
 
 tick = click.style("✓", fg="green", bold=True)
 
 
-@dataclass(frozen=True)
-class Output:
-    path: Path
-    content: str
-
-
-def build(app: app.App) -> None:
+def build(app: site.App) -> None:
     try:
         dirs.remove_tree(str(app.build_dir))
     except OSError:
@@ -32,10 +25,10 @@ def build(app: app.App) -> None:
     click.echo("Done")
 
 
-def _render_views(app: app.App) -> None:
-    for url in app.generate_routes():
-        path = _output_path(app.build_dir, url.url)
-        response = url.view()
+def _render_views(app: site.App) -> None:
+    for resolved in app.flatten_urls():
+        path = app.build_dir / _output_path(resolved.url)
+        response = resolved.view()
 
         dirs.mkpath(str(path.parent))
 
@@ -43,11 +36,6 @@ def _render_views(app: app.App) -> None:
             f.write(response.content)
 
 
-def _output_path(build_dir: Path, path: str) -> Path:
-    path = Path(path.strip("/"))
-
-    output_path = build_dir / path
-    if not path.suffix:
-        output_path = output_path / "index.html"
-
-    return output_path
+def _output_path(path: str) -> Path:
+    output_path = Path(path.strip("/"))
+    return output_path if output_path.suffix else output_path / "index.html"

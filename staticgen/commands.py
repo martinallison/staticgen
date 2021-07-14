@@ -2,9 +2,8 @@ from typing import Optional
 
 import click
 
-from . import app
 from . import build as _build
-from . import server
+from . import server, site
 
 
 class App(click.ParamType):
@@ -12,8 +11,8 @@ class App(click.ParamType):
 
     def convert(
         self, value: Optional[str], param: Optional[str], ctx: click.Context
-    ) -> app.App:
-        return app.from_module(value)
+    ) -> site.App:
+        return site.from_module(value)
 
 
 takes_app = click.option("-c", "--conf", "app", type=App())
@@ -26,15 +25,14 @@ def main():
 
 @main.command()
 @takes_app
-def build(app: app.App):
+def build(app: site.App):
     _build.build(app)
 
 
 @main.command()
 @takes_app
-@click.option("-s", "--strict", is_flag=True)
-def serve(app: app.App, strict: bool):
-    server.serve(app, strict=strict)
+def serve(app: site.App):
+    server.serve(app)
 
 
 if __name__ == "__main__":

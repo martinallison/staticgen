@@ -1,9 +1,9 @@
 import livereload
 
-from . import app
+from . import site
 
 
-def serve(app: app.App, strict: bool):
-    server = livereload.Server(app.wsgi(strict=strict))
+def serve(app: site.App):
+    server = livereload.Server(app.wsgi())
     server.watch(app.base_dir)
     server.serve(port=8080, root=app.build_dir)

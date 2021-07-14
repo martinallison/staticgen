@@ -1,52 +1,49 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Iterable, Mapping, Optional
+from functools import partial
+from typing import Callable, Mapping, Optional
 
-if TYPE_CHECKING:
-    from . import app, views
+import parse
+
+from . import http
+
+Kwargs = Mapping[str, str]
+
+View = Callable[..., http.Response]
+PartialView = Callable[[http.Request], http.Response]
 
 
-ForEach = Mapping[str, Callable[["app.App"], Iterable]]
+@dataclass
+class Match:
+    kwargs: Kwargs
+
+
+@dataclass
+class Resolved:
+    url: str
+    view: PartialView
 
 
 @dataclass
 class Url:
-    name: str
     pattern: str
-    view: views.View
-    foreach: ForEach
+    view: View
+    name: Optional[str]
+
+    def format(self: Url, **kwargs: str) -> str:
+        return self.pattern.format(**kwargs)
+
+    def match(self: Url, path: str) -> Optional[Match]:
+        if match := parse.parse(self.pattern, path):
+            return Match(kwargs=match.named)
+        return None
+
+    def resolve(self: Url, kwargs: Mapping[str, str]) -> Resolved:
+        path = self.format(**kwargs)
+        view = partial(self.view, **kwargs)
+        return Resolved(url=path, view=view)
 
 
-def url(
-    pattern: str, view: views.View, *, name: str, foreach: Optional[ForEach] = None
-) -> Url:
-    """
-    Create a URL.
-
-    URLs define where content should be accessible from in the resulting built site.
-
-    A URL has a pattern that maps to a view. A view is callable that takes an `app.App`
-    and returns some string content.
-
-    The string content returned by a view is output to a file at the URL path relative
-    to the build directory.
-
-    Example:
-
-        # views.py
-        def hello(app):
-            return "<body><p>Hello</p></body>"
-
-        # urls.py
-        urls = [url("/hello", view, name="hello")]
-
-        # conf.py
-        urlconf = "project.urls"
-
-        staticgen serve --conf="path.to.conf"
-
-        GET localhost/hello
-        -> <body><p>Hello</p></body>
-    """
-    return Url(pattern=pattern, view=view, name=name, foreach=foreach or {})
+def url(pattern: str, view: View, *, name: Optional[str] = None) -> Url:
+    return Url(pattern=pattern, view=view, name=name)

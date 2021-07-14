@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import mimetypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Iterable, List, Protocol, Tuple
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Protocol, Tuple, Union
+
+from . import http
 
 if TYPE_CHECKING:
-    from . import app
+    from . import site
 
 
 Environ = Dict[str, str]
 HeaderItems = Iterable[Tuple[str, str]]
 
 Headers = Dict[str, str]
-Response = Tuple[str, Headers, str]
+Response = Tuple[str, Headers, Union[str, bytes]]
 
 
 class StartResponse(Protocol):
@@ -19,64 +22,50 @@ class StartResponse(Protocol):
         ...
 
 
-class Application(Protocol):
+class App(Protocol):
     def __call__(self, environ: Environ, start_response: StartResponse) -> List[bytes]:
         ...
 
 
-class View(Protocol):
-    def __call__(self, environ: Environ) -> Response:
-        ...
-
-
-def application(
-    app: "app.App",
-    environ: Environ,
-    start_response: StartResponse,
-    *,
-    strict: bool = False,
+def app(
+    site_app: "site.App", environ: Environ, start_response: StartResponse
 ) -> List[bytes]:
-    """
-    Return some bytes in response to a WSGI request based on urls defined in `app`.
-
-    Only GET requests are allowed to emulate a static server. Generally anything that
-    can't be constructed/achieved at build time is not implemented.
-
-    Args:
-
-        * app: The staticgen app with URL definitions
-        * environ, start_response: WSGI arguments passed by the server
-        * strict: Whether or not to 404 for URLs that wouldn't appear in the built site
-    """
-
-    if environ["REQUEST_METHOD"] != "GET":
-        return _response(environ, start_response, _method_not_allowed)
+    response: Optional[Response] = None
 
     path = environ["PATH_INFO"]
-    if not (view := app.resolve_url(path, strict=strict)):
-        return _response(environ, start_response, _not_found)
+    method = environ["REQUEST_METHOD"]
+    content_type = _content_type_for_path(path)
 
-    def wsgi_view(environ: Environ) -> Response:
-        response = view()
-        return (
-            "200 OK",
-            {"Content-Type": _content_type_for_path(path)},
-            response.content,
-        )
+    if method != "GET":
+        response = _method_not_allowed(method)
 
-    return _response(environ, start_response, wsgi_view)
+    for view in site_app.resolve_url(path):
+        try:
+            content = view().content
+        except http.Http404:
+            continue
+
+        response = _ok(content, content_type=content_type)
+        break
+
+    return _response(start_response, response or _not_found(path))
 
 
-def _response(
-    environ: Environ, start_response: StartResponse, view: View
-) -> List[bytes]:
-    status, headers, body = view(environ)
+def _response(start_response: StartResponse, response: Response) -> List[bytes]:
+    status, headers, body = response
     start_response(status, _headers(headers))
-    return [body.encode("utf-8")]
+    return [body.encode("utf-8") if isinstance(body, str) else body]
 
 
-def _not_found(environ: Environ) -> Response:
-    path = environ["PATH_INFO"]
+def _ok(content: Union[str, bytes], content_type: str) -> Response:
+    return (
+        "200 OK",
+        {"Content-Type": content_type},
+        content,
+    )
+
+
+def _not_found(path: str) -> Response:
     return (
         "404 Not Found",
         {"Content-Type": "text/plain"},
@@ -84,8 +73,7 @@ def _not_found(environ: Environ) -> Response:
     )
 
 
-def _method_not_allowed(environ: Environ) -> Response:
-    method = environ["REQUEST_METHOD"]
+def _method_not_allowed(method: str) -> Response:
     return (
         "405 Method Not Allowed",
         {"Content-Type": "text/plain"},
@@ -98,10 +86,4 @@ def _headers(d: Dict[str, str]) -> List[Tuple[str, str]]:
 
 
 def _content_type_for_path(path: str) -> str:
-    return {
-        "": "text/html",
-        ".txt": "text/plain",
-        ".html": "text/html",
-        ".js": "text/javascript",
-        ".json": "application/json",
-    }[Path(path).suffix]
+    return mimetypes.guess_type(path)[0] if Path(path).suffix else "text/html"
